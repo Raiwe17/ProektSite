@@ -965,10 +965,9 @@ const App: React.FC = () => {
                       <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600">
                           <Workflow size={24} />
                       </div>
-                      <h2 className="text-xl font-bold text-gray-800 mb-2">FlowBuilder MVP</h2>
+                      <h2 className="text-xl font-bold text-gray-800 mb-2">OCK - очень крутой конструктор (на самом деле не очень)</h2>
                       <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-                          Визуальный конструктор сайтов с возможностью создания логики через нодовый редактор.
-                          Поддерживает создание компонентов, анимации, скрипты взаимодействия и экспорт в чистый HTML.
+                          Создан Морозовым Елисеем. 9К
                       </p>
                       <div className="w-full bg-gray-50 rounded p-3 text-xs text-gray-500 border border-gray-100">
                           <div className="flex justify-between mb-1">
@@ -1074,7 +1073,7 @@ const App: React.FC = () => {
 
               <div className="flex flex-col leading-none">
                   <span className="text-sm font-semibold text-gray-700 flex items-center select-none">
-                      FlowBuilder
+                      OCK
                       {isSaved && <Check size={12} className="ml-2 text-green-500 opacity-50" title="Сохранено" />}
                   </span>
                   <span className="text-[10px] text-gray-500">
