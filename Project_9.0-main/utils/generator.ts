@@ -1,4 +1,3 @@
-
 import { CanvasElement, ElementType, CustomComponentDefinition, SavedNodeGroup, Page } from '../types';
 import { evaluateNodeGraph } from './evaluate';
 import { GOOGLE_FONTS } from '../constants';
@@ -18,10 +17,11 @@ export const generateHTML = (
     scripts: SavedNodeGroup[] = []
 ): string => {
   
-  // Helper: Convert Pixel value to Viewport Width (vw) based on Canvas Width
   const pxToVw = (px: number) => `${(px / width) * 100}vw`;
 
-  // Helper to map element types to Tailwind classes
+  // FIX: Default static context for initial evaluation
+  const defaultContext = { isHovered: false, isClicked: false, time: 0 };
+
   const getTailwindClasses = (type: ElementType, style: any): string => {
     switch (type) {
       case ElementType.BUTTON:
@@ -30,7 +30,6 @@ export const generateHTML = (
         if (style.textAlign === 'left') justifyClass = 'justify-start px-4';
         if (style.textAlign === 'right') justifyClass = 'justify-end px-4';
         return `w-full h-full flex items-center ${justifyClass} transition-opacity hover:opacity-90 overflow-hidden`;
-        
       case ElementType.HEADING:
         return "w-full h-full overflow-hidden leading-tight flex flex-col justify-center";
       case ElementType.PARAGRAPH:
@@ -53,7 +52,6 @@ export const generateHTML = (
     }
   };
 
-  // Helper to convert internal style object to CSS string with scaling
   const getElementCSS = (style: any, elemWidth: number, elemHeight: number, content: string): string => {
     let css = '';
     
@@ -68,10 +66,11 @@ export const generateHTML = (
     if (style.justifyContent) css += `justify-content: ${style.justifyContent}; `;
     if (style.transform) css += `transform: ${style.transform}; `;
     if (style.textAlign) css += `text-align: ${style.textAlign}; `;
-    if (style.animation) css += `animation: ${style.animation}; `;
     if (style.transition) css += `transition: ${style.transition}; `;
     
-    // New Props
+    // FIX: Apply animation from style (this is the initial inline animation)
+    if (style.animation) css += `animation: ${style.animation}; `;
+
     if (style.flexDirection) css += `flex-direction: ${style.flexDirection}; `;
     if (style.lineHeight) css += `line-height: ${style.lineHeight}; `;
     if (style.letterSpacing) css += `letter-spacing: ${style.letterSpacing}; `;
@@ -81,7 +80,6 @@ export const generateHTML = (
     if (style.textShadow) css += `text-shadow: ${style.textShadow}; `;
     if (style.objectFit) css += `object-fit: ${style.objectFit}; `;
 
-    // Scale these properties to vw
     if (style.borderRadius) css += `border-radius: ${pxToVw(style.borderRadius)}; `;
     if (style.padding) css += `padding: ${pxToVw(style.padding)}; `;
     
@@ -94,7 +92,6 @@ export const generateHTML = (
     }
 
     if (style.boxShadow) {
-         // Convert pixel values in shadow string to vw
          const scaledShadow = style.boxShadow.replace(/(-?\d+(\.\d+)?)px/g, (match: string, num: string) => {
              return pxToVw(parseFloat(num));
          });
@@ -120,12 +117,10 @@ export const generateHTML = (
     return css;
   };
 
-  // Recursive render function
   const renderElement = (el: CanvasElement, parentWidth: number, parentHeight: number): string => {
     const children = elements.filter(child => child.parentId === el.id);
     const innerHTML = children.map(child => renderElement(child, el.width, el.height)).join('');
     
-    // Calculate layout in percentages relative to parent
     const leftPercent = (el.x / parentWidth) * 100;
     const topPercent = (el.y / parentHeight) * 100;
     const widthPercent = (el.width / parentWidth) * 100;
@@ -139,9 +134,9 @@ export const generateHTML = (
         height: ${heightPercent.toFixed(4)}%;
     `;
     
-    // Static evaluation for initial state
-    let computedData = { style: {}, content: '' };
+    let computedData = { style: {} as Record<string, any>, content: '' };
     
+    // FIX: Pass defaultContext to all evaluateNodeGraph calls
     if (el.type === ElementType.CUSTOM) {
         let def: CustomComponentDefinition | undefined;
         if (el.isDetached && el.customNodeGroup) {
@@ -149,14 +144,14 @@ export const generateHTML = (
         } else if (el.customComponentId) {
             def = customComponents.find(c => c.id === el.customComponentId);
         }
-        if (def) computedData = evaluateNodeGraph(def, el.propOverrides);
+        if (def) computedData = evaluateNodeGraph(def, el.propOverrides, defaultContext);
     }
 
     if (el.scripts && el.scripts.length > 0) {
         el.scripts.forEach(scriptId => {
             const scriptDef = scripts.find(s => s.id === scriptId);
             if (scriptDef) {
-                const res = evaluateNodeGraph(scriptDef, el.propOverrides);
+                const res = evaluateNodeGraph(scriptDef, el.propOverrides, defaultContext);
                 computedData.style = { ...computedData.style, ...res.style };
                 if (res.content !== undefined) computedData.content = res.content;
             }
@@ -179,8 +174,6 @@ export const generateHTML = (
     } else if (el.type === ElementType.IMAGE_PLACEHOLDER) {
         if (el.src) {
             tag = 'img';
-            // We use 'src' attribute on the main tag, no inner HTML
-            // Note: We need to inject src into the tag generation logic below or handle it specifically
         } else {
              innerContentHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af; height:100%;">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
@@ -193,7 +186,6 @@ export const generateHTML = (
                  innerContentHTML = `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${ytId}?autoplay=${el.videoOptions?.autoplay ? 1 : 0}&controls=${el.videoOptions?.controls === false ? 0 : 1}&loop=${el.videoOptions?.loop ? 1 : 0}&playlist=${el.videoOptions?.loop ? ytId : ''}&mute=${el.videoOptions?.muted ? 1 : 0}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" style="border-radius: inherit; pointer-events: auto;"></iframe>`;
              } else {
                  tag = 'video';
-                 // src will be added below
              }
          } else {
             innerContentHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; color:#9ca3af; height:100%;">
@@ -218,7 +210,6 @@ export const generateHTML = (
         innerContentHTML = textWrapper(finalContent);
     }
 
-    // Special handling for tags that use SRC attribute
     let srcAttr = '';
     let extraAttrs = '';
     if (tag === 'img') {
@@ -228,7 +219,7 @@ export const generateHTML = (
         if (el.videoOptions?.autoplay) extraAttrs += ' autoplay';
         if (el.videoOptions?.loop) extraAttrs += ' loop';
         if (el.videoOptions?.muted) extraAttrs += ' muted';
-        if (el.videoOptions?.controls !== false) extraAttrs += ' controls'; // default true
+        if (el.videoOptions?.controls !== false) extraAttrs += ' controls';
         extraAttrs += ' playsinline';
     }
 
@@ -242,11 +233,10 @@ export const generateHTML = (
     `;
   };
 
-  // Generate HTML for each page container
   const pagesHTML = pages.map((page, index) => {
       const pageElements = elements.filter(el => el.pageId === page.id && !el.parentId);
       const content = pageElements.map(el => renderElement(el, width, height)).join('\n');
-      const hiddenClass = index === 0 ? '' : 'hidden'; // Show first page by default
+      const hiddenClass = index === 0 ? '' : 'hidden';
       return `
         <div id="page-${page.id}" class="page-container absolute inset-0 w-full h-full ${hiddenClass}">
             ${content}
@@ -272,7 +262,6 @@ export const generateHTML = (
 
   const containerHeightVw = (height / width) * 100;
 
-  // Collect Fonts
   const fontsToLoad = new Set<string>();
   elements.forEach(el => {
       if (el.style.fontFamily && GOOGLE_FONTS.includes(el.style.fontFamily)) {
@@ -289,19 +278,54 @@ export const generateHTML = (
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>Exported Project</title>
     <script src="https://cdn.tailwindcss.com"></script>
     ${fontLink}
     <style>
+        * { box-sizing: border-box; }
         body { margin: 0; padding: 0; overflow-x: hidden; background-color: #ffffff; font-family: sans-serif; }
-        #app-root { position: relative; width: 100vw; height: ${containerHeightVw}vw; overflow: hidden; }
+        #app-root { position: relative; width: 100vw; max-width: 100%; height: ${containerHeightVw}vw; min-height: 100vh; overflow-x: hidden; overflow-y: auto; }
         .hidden { display: none !important; }
+        
+        @media (max-width: 1024px) and (min-width: 769px) {
+            #app-root { height: auto; min-height: 100vh; }
+        }
+        @media (max-width: 768px) {
+            #app-root { height: auto; min-height: 100vh; width: 100%; }
+            button[data-el-id] { min-height: 44px; min-width: 44px; }
+        }
+        @media (max-width: 768px) and (orientation: landscape) {
+            #app-root { height: auto; min-height: 100vh; }
+        }
+        img, video, iframe { max-width: 100%; height: auto; object-fit: contain; }
+        .page-container { max-width: 100%; overflow-x: hidden; }
+        
         /* Animations */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
         @keyframes slideInUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        /* ... other animations ... */
+        @keyframes slideInDown { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideInLeft { from { transform: translateX(-50px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideInRight { from { transform: translateX(50px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes zoomIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes zoomOut { from { transform: scale(1); opacity: 1; } to { transform: scale(0.5); opacity: 0; } }
+        @keyframes bounce { 
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 
+            40% { transform: translateY(-20px); } 
+            60% { transform: translateY(-10px); } 
+        }
+        @keyframes pulse { 
+            0% { transform: scale(1); } 
+            50% { transform: scale(1.05); } 
+            100% { transform: scale(1); } 
+        }
+        @keyframes shake { 
+            0%, 100% { transform: translateX(0); } 
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 
+            20%, 40%, 60%, 80% { transform: translateX(5px); } 
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -315,18 +339,25 @@ export const generateHTML = (
             startTime: Date.now(),
             activePageId: PROJECT_DATA.pages[0]?.id,
             state: { hovers: {}, clicks: {}, time: 0, triggerStates: {} },
+            animationStates: {},
             
             init: function() {
-                document.querySelectorAll('[data-el-id]').forEach(el => {
+                const self = this;
+                document.querySelectorAll('[data-el-id]').forEach(function(el) {
                     const id = el.getAttribute('data-el-id');
-                    el.addEventListener('mouseenter', () => { this.state.hovers[id] = true; });
-                    el.addEventListener('mouseleave', () => { this.state.hovers[id] = false; });
-                    el.addEventListener('click', (e) => { 
-                        // Don't stop propagation if it's a link or form input
+                    el.addEventListener('mouseenter', function() { self.state.hovers[id] = true; });
+                    el.addEventListener('mouseleave', function() { self.state.hovers[id] = false; });
+                    el.addEventListener('click', function(e) { 
                         if (['A','INPUT','BUTTON'].includes(e.target.tagName)) return;
                         e.stopPropagation();
-                        this.state.clicks[id] = !this.state.clicks[id]; 
+                        self.state.clicks[id] = !self.state.clicks[id]; 
                     });
+                    
+                    // FIX: Track existing inline animations so the loop won't restart them
+                    var inlineAnim = el.style.animation;
+                    if (inlineAnim && inlineAnim !== 'none' && inlineAnim.trim() !== '') {
+                        self.animationStates[id] = inlineAnim;
+                    }
                 });
                 this.loop();
             },
@@ -334,85 +365,208 @@ export const generateHTML = (
             navigateTo: function(pageId) {
                 if (this.activePageId === pageId) return;
 
-                // Reset interaction states for elements on the page we are leaving
-                // This prevents "stuck" true states (like clicks) from triggering immediately when we return
-                const leavingElements = PROJECT_DATA.elements.filter(el => el.pageId === this.activePageId);
-                leavingElements.forEach(el => {
-                   this.state.clicks[el.id] = false;
-                   this.state.hovers[el.id] = false;
+                var leavingElements = PROJECT_DATA.elements.filter(function(el) { return el.pageId === RUNTIME.activePageId; });
+                leavingElements.forEach(function(el) {
+                   RUNTIME.state.clicks[el.id] = false;
+                   RUNTIME.state.hovers[el.id] = false;
+                   // FIX: Clear animation states for leaving page so they restart on return
+                   delete RUNTIME.animationStates[el.id];
                 });
 
                 document.getElementById('page-' + this.activePageId)?.classList.add('hidden');
                 document.getElementById('page-' + pageId)?.classList.remove('hidden');
                 this.activePageId = pageId;
+                
+                // FIX: Restart inline animations on newly visible page
+                var newPageElements = PROJECT_DATA.elements.filter(function(el) { return el.pageId === pageId; });
+                newPageElements.forEach(function(el) {
+                    var domEl = document.querySelector('[data-el-id="' + el.id + '"]');
+                    if (domEl && domEl.style.animation && domEl.style.animation !== 'none') {
+                        var anim = domEl.style.animation;
+                        domEl.style.animation = 'none';
+                        void domEl.offsetHeight;
+                        domEl.style.animation = anim;
+                        RUNTIME.animationStates[el.id] = anim;
+                    }
+                });
             },
 
             evaluateNodeGraph: function(def, overrides, context) {
-                const outputNode = def.nodes.find(n => n.type === 'OUTPUT');
-                const memo = new Map();
-                const visited = new Set();
-                const evaluateNode = (nodeId) => {
+                var self = this;
+                var outputNode = def.nodes.find(function(n) { return n.type === 'OUTPUT'; });
+                var memo = new Map();
+                var visited = new Set();
+                
+                var evaluateNode = function(nodeId) {
                     if (memo.has(nodeId)) return memo.get(nodeId);
                     if (visited.has(nodeId)) return null;
                     visited.add(nodeId);
-                    if (overrides[nodeId] !== undefined) return overrides[nodeId];
-                    const node = def.nodes.find(n => n.id === nodeId);
+                    if (overrides && overrides[nodeId] !== undefined) return overrides[nodeId];
+                    var node = def.nodes.find(function(n) { return n.id === nodeId; });
                     if (!node) return null;
-                    const getVal = (inputSocketId) => {
-                        const conn = def.connections.find(c => c.targetNodeId === nodeId && c.targetSocketId === inputSocketId);
+                    
+                    var getVal = function(inputSocketId) {
+                        var conn = def.connections.find(function(c) { return c.targetNodeId === nodeId && c.targetSocketId === inputSocketId; });
                         return conn ? evaluateNode(conn.sourceNodeId) : null;
                     };
                     
-                    let res = null;
-                    const val = node.data.value;
+                    var res = null;
+                    var val = node.data ? node.data.value : undefined;
 
                     switch (node.type) {
                         case 'NAVIGATE': {
-                             const trigger = getVal('in-trigger');
-                             const prevTrigger = this.state.triggerStates[nodeId];
-                             
+                             var trigger = getVal('in-trigger');
+                             var prevTrigger = self.state.triggerStates[nodeId];
                              if (trigger === true && !prevTrigger && val) {
-                                 this.navigateTo(val);
+                                 self.navigateTo(val);
                              }
-                             this.state.triggerStates[nodeId] = trigger;
+                             self.state.triggerStates[nodeId] = trigger;
                              break;
                         }
                         case 'LINK': {
-                             const trigger = getVal('in-trigger');
-                             const prevTrigger = this.state.triggerStates[nodeId];
-                             const url = getVal('in-url') || val;
-                             const newTab = getVal('in-new-tab') !== null ? getVal('in-new-tab') : node.data.newTab;
-
+                             var trigger = getVal('in-trigger');
+                             var prevTrigger = self.state.triggerStates[nodeId];
+                             var url = getVal('in-url') || val;
+                             var newTab = getVal('in-new-tab') !== null ? getVal('in-new-tab') : (node.data && node.data.newTab);
                              if (trigger === true && !prevTrigger && url) {
-                                 if (newTab) {
-                                     window.open(url, '_blank');
-                                 } else {
-                                     window.location.href = url;
-                                 }
+                                 if (newTab) { window.open(url, '_blank'); }
+                                 else { window.location.href = url; }
                              }
-                             this.state.triggerStates[nodeId] = trigger;
+                             self.state.triggerStates[nodeId] = trigger;
                              break;
                         }
                         case 'ALERT': {
-                             const trigger = getVal('in-trigger');
-                             const prevTrigger = this.state.triggerStates[nodeId];
-                             const msg = getVal('in-message') || val;
-                             
+                             var trigger = getVal('in-trigger');
+                             var prevTrigger = self.state.triggerStates[nodeId];
+                             var msg = getVal('in-message') || val;
                              if (trigger === true && !prevTrigger && msg) {
-                                 // Use setTimeout to allow the UI update/frame to complete before blocking
-                                 setTimeout(() => alert(msg), 0);
+                                 setTimeout(function() { alert(msg); }, 0);
                              }
-                             this.state.triggerStates[nodeId] = trigger;
+                             self.state.triggerStates[nodeId] = trigger;
                              break;
                         }
-                        case 'INTERACTION_HOVER': res = context.isHovered; break;
-                        case 'INTERACTION_CLICK': res = context.isClicked; break;
-                        case 'TIMER': res = context.time * Number(getVal('in-speed') ?? 1); break;
+                        case 'INTERACTION_HOVER': res = context ? context.isHovered : false; break;
+                        case 'INTERACTION_CLICK': res = context ? context.isClicked : false; break;
+                        case 'TIMER': res = (context ? context.time : 0) * Number(getVal('in-speed') || 1); break;
+                        
                         case 'IF_ELSE': res = getVal('in-condition') ? getVal('in-true') : getVal('in-false'); break;
                         case 'EQUAL': res = getVal('in-a') == getVal('in-b'); break;
-                        // ... (Include other math/logic ops from evaluate.ts) ...
+                        case 'NOT_EQUAL': res = getVal('in-a') != getVal('in-b'); break;
+                        case 'GREATER_THAN': res = Number(getVal('in-a')) > Number(getVal('in-b')); break;
+                        case 'LESS_THAN': res = Number(getVal('in-a')) < Number(getVal('in-b')); break;
+                        case 'GREATER_EQUAL': res = Number(getVal('in-a')) >= Number(getVal('in-b')); break;
+                        case 'LESS_EQUAL': res = Number(getVal('in-a')) <= Number(getVal('in-b')); break;
+                        case 'AND': res = !!(getVal('in-a') && getVal('in-b')); break;
+                        case 'OR': res = !!(getVal('in-a') || getVal('in-b')); break;
+                        case 'NOT': res = !getVal('in-a'); break;
+                        
+                        case 'ADD': res = Number(getVal('in-a') || 0) + Number(getVal('in-b') || 0); break;
+                        case 'SUBTRACT': res = Number(getVal('in-a') || 0) - Number(getVal('in-b') || 0); break;
+                        case 'MULTIPLY': res = Number(getVal('in-a') || 0) * Number(getVal('in-b') || 0); break;
+                        case 'DIVIDE': {
+                            var divisor = Number(getVal('in-b') || 1);
+                            res = divisor !== 0 ? Number(getVal('in-a') || 0) / divisor : 0;
+                            break;
+                        }
+                        case 'MODULO': {
+                            var mod = Number(getVal('in-b') || 1);
+                            res = mod !== 0 ? Number(getVal('in-a') || 0) % mod : 0;
+                            break;
+                        }
+                        case 'POWER': res = Math.pow(Number(getVal('in-a') || 0), Number(getVal('in-b') || 1)); break;
+                        case 'NEGATE': res = -Number(getVal('in-a') || 0); break;
+                        case 'ABS': res = Math.abs(Number(getVal('in-a') || 0)); break;
+                        case 'ROUND': res = Math.round(Number(getVal('in-a') || 0)); break;
+                        case 'FLOOR': res = Math.floor(Number(getVal('in-a') || 0)); break;
+                        case 'CEIL': res = Math.ceil(Number(getVal('in-a') || 0)); break;
+                        case 'MIN': res = Math.min(Number(getVal('in-a') || 0), Number(getVal('in-b') || 0)); break;
+                        case 'MAX': res = Math.max(Number(getVal('in-a') || 0), Number(getVal('in-b') || 0)); break;
+                        case 'CLAMP': {
+                            var v = Number(getVal('in-value') || 0);
+                            var lo = Number(getVal('in-min') || 0);
+                            var hi = Number(getVal('in-max') || 1);
+                            res = Math.min(Math.max(v, lo), hi);
+                            break;
+                        }
+                        case 'MAP_RANGE': {
+                            var input = Number(getVal('in-value') || 0);
+                            var inMin = Number(getVal('in-in-min') || 0);
+                            var inMax = Number(getVal('in-in-max') || 1);
+                            var outMin = Number(getVal('in-out-min') || 0);
+                            var outMax = Number(getVal('in-out-max') || 1);
+                            var range = inMax - inMin;
+                            res = range !== 0 ? outMin + ((input - inMin) / range) * (outMax - outMin) : outMin;
+                            break;
+                        }
+                        case 'RANDOM': res = Math.random(); break;
+                        case 'SIN': res = Math.sin(Number(getVal('in-a') || 0)); break;
+                        case 'COS': res = Math.cos(Number(getVal('in-a') || 0)); break;
+                        case 'CONCAT': {
+                            var strA = String(getVal('in-a') || '');
+                            var strB = String(getVal('in-b') || '');
+                            res = strA + strB;
+                            break;
+                        }
+                        
                         case 'TEXT': case 'COLOR': case 'NUMBER': case 'TOGGLE': res = val; break;
-                        case 'STYLE': res = { backgroundColor: getVal('in-bg'), color: getVal('in-text'), fontSize: getVal('in-size') }; break;
+                        
+                        case 'STYLE': {
+                            var styleObj = {};
+                            var bg = getVal('in-bg');
+                            var color = getVal('in-text');
+                            var size = getVal('in-size');
+                            if (bg !== null && bg !== undefined) styleObj.backgroundColor = bg;
+                            if (color !== null && color !== undefined) styleObj.color = color;
+                            if (size !== null && size !== undefined) styleObj.fontSize = size;
+                            res = styleObj;
+                            break;
+                        }
+                        
+                        case 'ANIMATION': {
+                            var triggerConn = def.connections.find(function(c) {
+                                return c.targetNodeId === nodeId && c.targetSocketId === 'in-trigger';
+                            });
+                            var shouldRun = true;
+                            
+                            if (triggerConn) {
+                                shouldRun = !!getVal('in-trigger');
+                            }
+
+                            if (!shouldRun) {
+                                res = { animation: 'none' };
+                            } else {
+                                var type = val || 'fadeIn';
+                                var dur = Number(getVal('in-duration') || 1);
+                                var delay = Number(getVal('in-delay') || 0);
+                                
+                                var iter = '1';
+                                if (type === 'spin' || type === 'pulse' || type === 'shake' || type === 'bounce') iter = 'infinite';
+
+                                res = {
+                                    animation: type + ' ' + dur + 's ease-in-out ' + delay + 's ' + iter + ' both'
+                                };
+                            }
+                            break;
+                        }
+                        case 'TRANSITION': {
+                            var dur = Number(getVal('in-duration') || 0.3);
+                            var delay = Number(getVal('in-delay') || 0);
+                            res = {
+                                transition: 'all ' + dur + 's ease-in-out ' + delay + 's'
+                            };
+                            break;
+                        }
+                        case 'MERGE': {
+                            var styleA = getVal('in-style-a') || {};
+                            var styleB = getVal('in-style-b') || {};
+                            res = Object.assign({}, styleA, styleB);
+                            break;
+                        }
+                        case 'OUTPUT': {
+                            // OUTPUT node — handled separately below
+                            res = null;
+                            break;
+                        }
                         default: res = val;
                     }
                     visited.delete(nodeId);
@@ -421,7 +575,7 @@ export const generateHTML = (
                 };
 
                 // Trigger action nodes
-                def.nodes.forEach(n => {
+                def.nodes.forEach(function(n) {
                     if (['NAVIGATE', 'LINK', 'ALERT'].includes(n.type)) {
                         evaluateNode(n.id);
                     }
@@ -429,62 +583,94 @@ export const generateHTML = (
 
                 // Standard Output
                 if (!outputNode) return { style: {}, content: '' };
-                const styleConn = def.connections.find(c => c.targetNodeId === outputNode.id && c.targetSocketId === 'in-style');
-                const finalStyle = styleConn ? (evaluateNode(styleConn.sourceNodeId) || {}) : {};
-                const contentConn = def.connections.find(c => c.targetNodeId === outputNode.id && c.targetSocketId === 'in-content');
-                const finalContent = contentConn ? String(evaluateNode(contentConn.sourceNodeId)) : undefined;
+                var styleConn = def.connections.find(function(c) { return c.targetNodeId === outputNode.id && c.targetSocketId === 'in-style'; });
+                var finalStyle = styleConn ? (evaluateNode(styleConn.sourceNodeId) || {}) : {};
+                var contentConn = def.connections.find(function(c) { return c.targetNodeId === outputNode.id && c.targetSocketId === 'in-content'; });
+                var finalContent = contentConn ? String(evaluateNode(contentConn.sourceNodeId) || '') : undefined;
                 return { style: finalStyle, content: finalContent };
             },
 
             loop: function() {
+                var self = this;
                 this.state.time = (Date.now() - this.startTime) / 1000;
                 
-                // Only process elements on ACTIVE page
-                const activeElements = PROJECT_DATA.elements.filter(el => el.pageId === this.activePageId);
+                var activeElements = PROJECT_DATA.elements.filter(function(el) { return el.pageId === self.activePageId; });
 
-                activeElements.forEach(el => {
-                    if ((!el.scripts || el.scripts.length === 0) && el.type !== 'CUSTOM') return;
-                    const domEl = document.querySelector(\`[data-el-id="\${el.id}"]\`);
-                    if (!domEl) return;
+                activeElements.forEach(function(el) {
+                    var domEl = document.querySelector('[data-el-id="' + el.id + '"]');
+                    if (!domEl || !domEl.parentNode) return;
 
-                    const context = {
-                        isHovered: !!this.state.hovers[el.id],
-                        isClicked: !!this.state.clicks[el.id],
-                        time: this.state.time
+                    var context = {
+                        isHovered: !!self.state.hovers[el.id],
+                        isClicked: !!self.state.clicks[el.id],
+                        time: self.state.time
                     };
 
-                    let computedStyle = {};
-                    let computedContent = undefined;
+                    var computedStyle = {};
+                    var computedContent = undefined;
+                    var hasDynamicStyles = false;
 
                     if (el.type === 'CUSTOM') {
-                        let def = el.isDetached ? el.customNodeGroup : PROJECT_DATA.components.find(c => c.id === el.customComponentId);
+                        var def = el.isDetached ? el.customNodeGroup : PROJECT_DATA.components.find(function(c) { return c.id === el.customComponentId; });
                         if (def) {
-                            const res = this.evaluateNodeGraph(def, el.propOverrides, context);
+                            var res = self.evaluateNodeGraph(def, el.propOverrides, context);
                             Object.assign(computedStyle, res.style);
                             if (res.content !== undefined) computedContent = res.content;
+                            hasDynamicStyles = true;
                         }
                     }
 
-                    if (el.scripts) {
-                        el.scripts.forEach(sid => {
-                            const def = PROJECT_DATA.scripts.find(s => s.id === sid);
+                    if (el.scripts && el.scripts.length > 0) {
+                        el.scripts.forEach(function(sid) {
+                            var def = PROJECT_DATA.scripts.find(function(s) { return s.id === sid; });
                             if (def) {
-                                const res = this.evaluateNodeGraph(def, el.propOverrides, context);
+                                var res = self.evaluateNodeGraph(def, el.propOverrides, context);
                                 Object.assign(computedStyle, res.style);
                                 if (res.content !== undefined) computedContent = res.content;
+                                hasDynamicStyles = true;
                             }
                         });
                     }
 
-                    if (computedContent !== undefined && domEl.innerText !== computedContent) {
-                         if(['BUTTON','HEADING','PARAGRAPH'].includes(el.type)) domEl.innerText = computedContent;
+                    if (!hasDynamicStyles && computedContent === undefined) return;
+
+                    // Apply computed content
+                    if (computedContent !== undefined && domEl.innerText !== String(computedContent)) {
+                         if(['BUTTON','HEADING','PARAGRAPH','BADGE','CUSTOM'].includes(el.type)) {
+                             domEl.innerText = String(computedContent);
+                         }
                     }
-                    if (computedStyle.backgroundColor) domEl.style.backgroundColor = computedStyle.backgroundColor;
-                    if (computedStyle.color) domEl.style.color = computedStyle.color;
-                    if (computedStyle.transform) domEl.style.transform = computedStyle.transform;
-                    if (computedStyle.animation) domEl.style.animation = computedStyle.animation;
+                    
+                    // Apply simple style properties
+                    if (computedStyle.backgroundColor !== undefined) domEl.style.backgroundColor = computedStyle.backgroundColor;
+                    if (computedStyle.color !== undefined) domEl.style.color = computedStyle.color;
+                    if (computedStyle.fontSize !== undefined) domEl.style.fontSize = typeof computedStyle.fontSize === 'number' ? computedStyle.fontSize + 'px' : computedStyle.fontSize;
+                    if (computedStyle.transform !== undefined) domEl.style.transform = computedStyle.transform;
+                    if (computedStyle.opacity !== undefined) domEl.style.opacity = computedStyle.opacity;
+                    if (computedStyle.transition !== undefined) domEl.style.transition = computedStyle.transition;
+                    
+                    // FIX: Simplified animation handling — only change when desired animation differs from tracked
+                    if (computedStyle.animation !== undefined) {
+                        var desiredAnim = computedStyle.animation;
+                        var trackedAnim = self.animationStates[el.id];
+                        
+                        if (trackedAnim !== desiredAnim) {
+                            // Update tracking immediately to prevent re-triggering
+                            self.animationStates[el.id] = desiredAnim;
+                            
+                            if (!desiredAnim || desiredAnim === 'none') {
+                                domEl.style.animation = 'none';
+                            } else {
+                                // Force restart: remove → reflow → apply
+                                domEl.style.animation = 'none';
+                                void domEl.offsetHeight;
+                                domEl.style.animation = desiredAnim;
+                            }
+                        }
+                    }
                 });
-                requestAnimationFrame(() => this.loop());
+                
+                requestAnimationFrame(function() { self.loop(); });
             }
         };
         RUNTIME.init();

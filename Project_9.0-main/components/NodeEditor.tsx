@@ -1260,7 +1260,17 @@ export const NodeEditor: React.FC<NodeEditorProps> = ({
                                  {(node.type === NodeType.NUMBER || node.type === NodeType.ARRAY_GET || node.type === NodeType.ROUND || node.type === NodeType.TIMER) && (
                                     <div className="mb-3">
                                         {node.type !== NodeType.TIMER && (
-                                            <input type="number" value={node.data.value} onChange={(e) => handleNodeDataChange(node.id, 'value', parseInt(e.target.value) || 0)} className="w-full bg-black/30 text-xs p-1 rounded border-none focus:ring-1 focus:ring-blue-500" onMouseDown={(e) => e.stopPropagation()} placeholder={node.type === NodeType.ARRAY_GET ? 'Индекс' : 'Число'} />
+                                            <input type="number" value={node.data.value} onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (val === '') {
+                                                    handleNodeDataChange(node.id, 'value', 0);
+                                                } else {
+                                                    const parsed = node.type === NodeType.ARRAY_GET 
+                                                        ? parseInt(val) 
+                                                        : parseFloat(val);
+                                                    handleNodeDataChange(node.id, 'value', isNaN(parsed) ? 0 : parsed);
+                                                }
+                                            }} className="w-full bg-black/30 text-xs p-1 rounded border-none focus:ring-1 focus:ring-blue-500" onMouseDown={(e) => e.stopPropagation()} placeholder={node.type === NodeType.ARRAY_GET ? 'Индекс' : 'Число'} />
                                         )}
                                         {node.type === NodeType.TIMER && (
                                             <div className="text-xs text-center text-gray-400 font-mono py-1">(Outputs live time in sec)</div>

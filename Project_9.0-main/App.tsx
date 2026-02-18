@@ -10,7 +10,7 @@ import { NodeEditor } from './components/NodeEditor';
 import { AppMode, CanvasElement, ContextMenuState, ElementType, ResizeState, ResizeHandle, DragState, CustomComponentDefinition, ElementStyle, SavedNodeGroup, NodeType, Page } from './types';
 import { TOOLS, GOOGLE_FONTS } from './constants';
 import { generateHTML } from './utils/generator';
-import { Download, Play, GripHorizontal, GripVertical, Workflow, RotateCcw, Save, Menu, Upload, FileJson, Info, X, Check, Box } from 'lucide-react';
+import { Download, Play, GripHorizontal, GripVertical, Workflow, RotateCcw, Save, Menu, Upload, FileJson, Info, X, Check, Box, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 const SIDEBAR_WIDTH = 240;
 const CANVAS_WIDTH_DEFAULT = 1280; 
@@ -163,6 +163,7 @@ const App: React.FC = () => {
   // Main Menu State
   const [isMainMenuOpen, setIsMainMenuOpen] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -932,7 +933,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex w-full h-screen overflow-hidden bg-white">
+    <div className="flex w-full h-screen overflow-hidden bg-gray-100">
       
       {/* Node Editor Overlay */}
       {showNodeEditor && (
@@ -953,8 +954,8 @@ const App: React.FC = () => {
 
       {/* About Modal */}
       {showAboutModal && (
-          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
-              <div className="bg-white rounded-lg shadow-2xl w-96 p-6 relative">
+          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in p-4">
+              <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-4 sm:p-6 relative">
                   <button 
                      onClick={() => setShowAboutModal(false)}
                      className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
@@ -965,10 +966,9 @@ const App: React.FC = () => {
                       <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600">
                           <Workflow size={24} />
                       </div>
-                      <h2 className="text-xl font-bold text-gray-800 mb-2">FlowBuilder MVP</h2>
+                      <h2 className="text-xl font-bold text-gray-800 mb-2">OCK - очень крутой конструктор (на самом деле не очень)</h2>
                       <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-                          Визуальный конструктор сайтов с возможностью создания логики через нодовый редактор.
-                          Поддерживает создание компонентов, анимации, скрипты взаимодействия и экспорт в чистый HTML.
+                          Создан Морозовым Елисеем. 9К
                       </p>
                       <div className="w-full bg-gray-50 rounded p-3 text-xs text-gray-500 border border-gray-100">
                           <div className="flex justify-between mb-1">
@@ -986,35 +986,57 @@ const App: React.FC = () => {
       )}
       
       {!showNodeEditor && (
-        <HierarchyPanel 
-          elements={activePageElements} // ONLY show active page elements in tree
-          selectedId={selectedId}
-          customComponents={customComponents}
-          scripts={savedNodeGroups}
-          pages={pages}
-          activePageId={activePageId}
-          onSelect={setSelectedId}
-          onReparent={handleReparent}
-          onEditComponent={handleEditCustomComponent}
-          onEditScript={handleEditNodeGroup}
-          onDeleteScript={handleDeleteNodeGroup}
-          onCreateScript={handleCreateNewScript} 
-          onAddComponent={handleAddComponentFromSidebar}
-          onAddPage={handleAddPage}
-          onDeletePage={handleDeletePage}
-          onRenamePage={handleRenamePage}
-          onSelectPage={setActivePageId}
-        />
+        <>
+          {/* Mobile Sidebar Overlay */}
+          {isSidebarOpen && (
+            <div 
+              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+              onClick={() => setIsSidebarOpen(false)}
+            />
+          )}
+          <HierarchyPanel 
+            elements={activePageElements} // ONLY show active page elements in tree
+            selectedId={selectedId}
+            customComponents={customComponents}
+            scripts={savedNodeGroups}
+            pages={pages}
+            activePageId={activePageId}
+            onSelect={setSelectedId}
+            onReparent={handleReparent}
+            onEditComponent={handleEditCustomComponent}
+            onEditScript={handleEditNodeGroup}
+            onDeleteScript={handleDeleteNodeGroup}
+            onCreateScript={handleCreateNewScript} 
+            onAddComponent={handleAddComponentFromSidebar}
+            onAddPage={handleAddPage}
+            onDeletePage={handleDeletePage}
+            onRenamePage={handleRenamePage}
+            onSelectPage={setActivePageId}
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
+          />
+        </>
       )}
 
       {/* Main Workspace */}
       <div 
-        className={`flex-1 flex flex-col h-full bg-gray-100 relative ${!showNodeEditor ? 'ml-64' : ''}`}
+        className={`flex-1 flex flex-col h-full bg-gray-100 relative ${!showNodeEditor ? 'lg:ml-64' : ''}`}
         onContextMenu={handleContextMenu}
       >
         {/* Top Toolbar */}
-        <div className="h-12 bg-white border-b border-gray-200 flex items-center justify-between px-4 shrink-0 z-40 relative">
-           <div className="flex items-center space-x-4">
+        <div className="h-12 bg-white border-b border-gray-200 flex items-center justify-between px-2 sm:px-4 shrink-0 z-40 relative">
+           <div className="flex items-center space-x-2 sm:space-x-4">
+              {/* Mobile Sidebar Toggle */}
+              {!showNodeEditor && (
+                <button
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="lg:hidden p-2 hover:bg-gray-100 rounded-md transition-colors text-gray-700"
+                  aria-label="Toggle sidebar"
+                >
+                  {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+                </button>
+              )}
+              
               {/* Hamburger Menu */}
               <div className="relative">
                   <button 
@@ -1073,43 +1095,45 @@ const App: React.FC = () => {
               />
 
               <div className="flex flex-col leading-none">
-                  <span className="text-sm font-semibold text-gray-700 flex items-center select-none">
-                      FlowBuilder
+                  <span className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center select-none">
+                      OCK
                       {isSaved && <Check size={12} className="ml-2 text-green-500 opacity-50" title="Сохранено" />}
                   </span>
-                  <span className="text-[10px] text-gray-500">
+                  <span className="text-[9px] sm:text-[10px] text-gray-500 hidden sm:block">
                       Страница: <span className="font-medium text-gray-700">{pages.find(p => p.id === activePageId)?.name}</span>
                   </span>
               </div>
            </div>
 
-           <div className="flex items-center space-x-2">
-             <div className="flex items-center mr-4 text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded select-none">
+           <div className="flex items-center space-x-1 sm:space-x-2">
+             <div className="hidden sm:flex items-center mr-2 sm:mr-4 text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded select-none">
                <span className="font-mono">{Math.round(canvasSize.width)} x {Math.round(canvasSize.height)}</span>
              </div>
              
              {/* Node Editor Create Button */}
              <button 
                 onClick={handleCreateNewComponent}
-                className="flex items-center px-3 py-1.5 text-xs font-medium text-white bg-purple-600 rounded hover:bg-purple-700 transition-colors shadow-sm mr-2"
+                className="flex items-center px-2 sm:px-3 py-1.5 text-xs font-medium text-white bg-purple-600 rounded hover:bg-purple-700 transition-colors shadow-sm mr-1 sm:mr-2"
+                title="Создать ноду"
              >
-                <Workflow size={14} className="mr-1.5" />
-                Нода
+                <Workflow size={14} className="sm:mr-1.5" />
+                <span className="hidden sm:inline">Нода</span>
              </button>
 
              <button 
                onClick={handlePreview}
-               className="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors shadow-sm"
+               className="flex items-center px-2 sm:px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors shadow-sm"
+               title="Запуск"
              >
-               <Play size={14} className="mr-1.5 text-blue-600" />
-               Запуск
+               <Play size={14} className="sm:mr-1.5 text-blue-600" />
+               <span className="hidden sm:inline">Запуск</span>
              </button>
            </div>
         </div>
 
         {/* Scrollable Canvas Area */}
         <div 
-          className="flex-1 overflow-auto p-8 relative flex flex-col items-center"
+          className="flex-1 overflow-auto p-2 sm:p-4 md:p-8 relative flex flex-col items-center"
           onMouseDown={handleCanvasMouseDown}
         >
           {/* The Actual Canvas Artboard */}
@@ -1174,6 +1198,14 @@ const App: React.FC = () => {
             customDefinitions={customComponents}
             availableScripts={savedNodeGroups} // Pass SavedNodeGroups here
             onRenameComponent={handleRenameComponent}
+          />
+        )}
+        
+        {/* Mobile Properties Panel Overlay */}
+        {selectedElement && !showNodeEditor && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setSelectedId(null)}
           />
         )}
 

@@ -22,6 +22,8 @@ interface SidebarPanelProps {
   onDeletePage: (id: string) => void;
   onRenamePage: (id: string, name: string) => void;
   onSelectPage: (id: string) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 const ELEMENT_GROUPS = [
@@ -64,7 +66,9 @@ export const HierarchyPanel: React.FC<SidebarPanelProps> = ({
   onAddPage,
   onDeletePage,
   onRenamePage,
-  onSelectPage
+  onSelectPage,
+  isOpen = true,
+  onClose
 }) => {
   const [activeTab, setActiveTab] = useState<'elements' | 'layers' | 'library' | 'scripts' | 'pages'>('elements');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -154,7 +158,7 @@ export const HierarchyPanel: React.FC<SidebarPanelProps> = ({
             selectedId === element.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'
           }`}
           style={{ paddingLeft: `${level * 12 + 8}px` }}
-          onClick={() => onSelect(element.id)}
+          onClick={() => handleSelect(element.id)}
           draggable
           onDragStart={(e) => handleDragStart(e, element.id)}
           onDragOver={handleDragOver}
@@ -184,10 +188,28 @@ export const HierarchyPanel: React.FC<SidebarPanelProps> = ({
   };
 
   const rootElements = elements.filter(e => !e.parentId);
+  
+  // Close sidebar on mobile when selecting an element
+  const handleSelect = (id: string) => {
+    onSelect(id);
+    if (onClose && window.innerWidth < 1024) {
+      onClose();
+    }
+  };
+  
+  // Close sidebar on mobile when adding a component
+  const handleAddComponent = (type: ElementType, customId?: string) => {
+    onAddComponent(type, customId);
+    if (onClose && window.innerWidth < 1024) {
+      onClose();
+    }
+  };
 
   return (
     <div 
-      className="fixed left-0 top-0 bottom-8 w-64 bg-gray-900 border-r border-gray-800 flex flex-col z-50 shadow-xl"
+      className={`fixed left-0 top-0 bottom-8 w-64 bg-gray-900 border-r border-gray-800 flex flex-col z-50 shadow-xl transform transition-transform duration-300 ease-in-out
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        lg:translate-x-0 lg:static lg:z-auto lg:bottom-0`}
       onMouseDown={(e) => e.stopPropagation()} 
       onContextMenu={(e) => e.stopPropagation()}
     >
@@ -327,7 +349,7 @@ export const HierarchyPanel: React.FC<SidebarPanelProps> = ({
                                         draggable
                                         onDragStart={(e) => handleToolDragStart(e, tool.type)}
                                         onDragEnd={handleToolDragEnd}
-                                        onClick={() => onAddComponent(tool.type)}
+                                        onClick={() => handleAddComponent(tool.type)}
                                         className="flex flex-col items-center justify-center p-3 rounded bg-gray-800 border border-gray-700 hover:border-blue-500 hover:bg-gray-700 cursor-grab active:cursor-grabbing transition-all group relative"
                                     >
                                         <GripVertical className="absolute top-1 right-1 w-3 h-3 text-gray-600 opacity-0 group-hover:opacity-100" />
@@ -369,7 +391,7 @@ export const HierarchyPanel: React.FC<SidebarPanelProps> = ({
                              </div>
                              <div className="flex space-x-2 mt-2">
                                  <button 
-                                    onClick={() => onAddComponent(ElementType.CUSTOM, comp.id)}
+                                    onClick={() => handleAddComponent(ElementType.CUSTOM, comp.id)}
                                     className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded flex items-center justify-center"
                                  >
                                      <Plus size={12} className="mr-1" /> Добавить

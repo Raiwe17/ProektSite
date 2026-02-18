@@ -207,7 +207,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
   return (
     <div 
-      className="fixed right-0 top-0 bottom-8 w-72 bg-gray-900 border-l border-gray-800 shadow-xl z-50 flex flex-col animate-in slide-in-from-right duration-200"
+      className="fixed right-0 top-0 bottom-8 w-full sm:w-80 lg:w-72 bg-gray-900 border-l border-gray-800 shadow-xl z-50 flex flex-col animate-in slide-in-from-right duration-200 max-w-sm lg:max-w-none"
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >

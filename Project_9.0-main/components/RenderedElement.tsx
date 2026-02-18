@@ -1,5 +1,4 @@
-
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { ElementType, CanvasElement, ResizeHandle, CustomComponentDefinition, SavedNodeGroup } from '../types';
 import { TOOLS } from '../constants';
 import { Play, Box, Unlink } from 'lucide-react';
@@ -21,6 +20,48 @@ const getYoutubeId = (url: string) => {
     return (match && match[2].length === 11) ? match[2] : null;
 };
 
+// FIX: Keyframe definitions for the editor
+const ANIMATION_KEYFRAMES = `
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes slideInUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes slideInDown { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes slideInLeft { from { transform: translateX(-50px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideInRight { from { transform: translateX(50px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes zoomIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes zoomOut { from { transform: scale(1); opacity: 1; } to { transform: scale(0.5); opacity: 0; } }
+@keyframes bounce { 
+    0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 
+    40% { transform: translateY(-20px); } 
+    60% { transform: translateY(-10px); } 
+}
+@keyframes pulse { 
+    0% { transform: scale(1); } 
+    50% { transform: scale(1.05); } 
+    100% { transform: scale(1); } 
+}
+@keyframes shake { 
+    0%, 100% { transform: translateX(0); } 
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 
+    20%, 40%, 60%, 80% { transform: translateX(5px); } 
+}
+@keyframes spin { 100% { transform: rotate(360deg); } }
+`;
+
+// FIX: Inject keyframes into document once
+let keyframesInjected = false;
+const ensureKeyframes = () => {
+    if (keyframesInjected) return;
+    const styleId = 'app-animation-keyframes';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = ANIMATION_KEYFRAMES;
+        document.head.appendChild(style);
+    }
+    keyframesInjected = true;
+};
+
 export const RenderedElement: React.FC<RenderedElementProps> = ({ 
   element, 
   isSelected, 
@@ -37,23 +78,21 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
     ? "ring-2 ring-blue-500 z-30" 
     : "hover:ring-1 hover:ring-blue-300 z-10";
 
-  // --- STATIC EDITOR STATE ---
-  // In the editor, we force a static state (time=0, no hover/click) 
-  // so scripts don't interfere with editing.
-  
-  // 1. Evaluate Logic (Static Preview)
+  // FIX: Ensure keyframes exist in document
+  useEffect(() => {
+      ensureKeyframes();
+  }, []);
+
   const evaluatedData = useMemo(() => {
-      let mergedStyle = {};
+      let mergedStyle: Record<string, any> = {};
       let mergedContent = element.content;
 
-      // Static Context for Editor
       const runtimeContext: RuntimeContext = {
           isHovered: false,
           isClicked: false,
           time: 0
       };
 
-      // A. Evaluate Base Custom Component
       if (element.type === ElementType.CUSTOM) {
           let def: CustomComponentDefinition | undefined | null;
           if (element.isDetached && element.customNodeGroup) {
@@ -69,7 +108,6 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
           }
       }
 
-      // B. Evaluate Attached Scripts (Static)
       if (element.scripts && element.scripts.length > 0) {
           element.scripts.forEach(scriptId => {
               const scriptDef = scripts.find(d => d.id === scriptId);
@@ -93,16 +131,14 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
       scripts
   ]);
 
-  // 2. Merge Styles
   const instanceStyle = element.style || {};
   const computedStyle = evaluatedData.style || {};
   
-  const effectiveStyle = {
+  const effectiveStyle: Record<string, any> = {
       ...instanceStyle,
       ...computedStyle, 
   };
 
-  // 3. Auto Font Size Logic
   let fontSizeString = effectiveStyle.fontSize ? `${effectiveStyle.fontSize}px` : undefined;
   
   if (effectiveStyle.autoFontSize) {
@@ -114,7 +150,6 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
     fontSizeString = `${calculatedSize}px`;
   }
 
-  // 4. Construct Final React CSS Object
   const finalContentStyle: React.CSSProperties = {
     backgroundColor: effectiveStyle.backgroundColor,
     backgroundImage: effectiveStyle.backgroundImage,
@@ -145,9 +180,9 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
     boxShadow: effectiveStyle.boxShadow,
     textShadow: effectiveStyle.textShadow,
     transform: effectiveStyle.transform,
-    animation: effectiveStyle.animation, // CSS Animation string
-    transition: effectiveStyle.transition, // CSS Transition string
-    objectFit: effectiveStyle.objectFit
+    // FIX: Do NOT set animation in React style — useEffect handles it
+    transition: effectiveStyle.transition,
+    objectFit: effectiveStyle.objectFit as any
   };
 
   const wrapperStyle: React.CSSProperties = {
@@ -175,11 +210,38 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
 
   const contentToRender = evaluatedData.content !== undefined ? evaluatedData.content : element.content;
 
+  // FIX: Simplified animation ref and effect
+  const animationRef = useRef<HTMLDivElement | null>(null);
+  const appliedAnimRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const el = animationRef.current;
+    if (!el) return;
+    
+    const desiredAnim = effectiveStyle.animation || null;
+    
+    // Only act when the desired animation changes
+    if (appliedAnimRef.current === desiredAnim) return;
+    
+    appliedAnimRef.current = desiredAnim;
+    
+    if (!desiredAnim || desiredAnim === 'none') {
+      el.style.animation = 'none';
+    } else {
+      // Force restart: remove → reflow → apply
+      el.style.animation = 'none';
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+      void el.offsetHeight; // force reflow
+      el.style.animation = desiredAnim;
+    }
+  }, [effectiveStyle.animation]);
+
   const renderContent = () => {
     switch (element.type) {
       case ElementType.CUSTOM:
           return (
               <div 
+                ref={animationRef}
                 className="w-full h-full overflow-hidden relative" 
                 style={finalContentStyle}
               >
@@ -203,6 +265,7 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
       case ElementType.BADGE:
         return (
           <div 
+            ref={animationRef}
             className={`w-full h-full flex items-center ${getFlexJustify(effectiveStyle.textAlign)} overflow-hidden`}
             style={finalContentStyle}
           >
@@ -213,6 +276,7 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
       case ElementType.HEADING:
         return (
           <div
+             ref={animationRef}
              className="w-full h-full overflow-hidden flex flex-col justify-center"
              style={finalContentStyle}
           >
@@ -223,6 +287,7 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
       case ElementType.PARAGRAPH:
         return (
           <div 
+            ref={animationRef}
             className="w-full h-full overflow-hidden"
             style={finalContentStyle}
           >
@@ -234,6 +299,7 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
       case ElementType.CONTAINER:
         return (
           <div 
+            ref={animationRef}
             className={`w-full h-full ${element.type === ElementType.CONTAINER && !effectiveStyle.borderWidth && !effectiveStyle.borderBottomWidth && !effectiveStyle.borderTopWidth ? 'border-2 border-dashed border-gray-300' : ''}`}
             style={finalContentStyle}
           >
@@ -247,7 +313,7 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
         );
       case ElementType.INPUT:
         return (
-          <div className="w-full h-full relative">
+          <div ref={animationRef} className="w-full h-full relative">
              <input 
               type="text" 
               readOnly 
@@ -265,21 +331,24 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
       case ElementType.IMAGE_PLACEHOLDER:
         if (element.src) {
             return (
-                <img 
-                    src={element.src} 
-                    alt={element.alt || 'image'} 
-                    className="w-full h-full pointer-events-none"
-                    style={{ 
-                        objectFit: effectiveStyle.objectFit,
-                        borderRadius: finalContentStyle.borderRadius,
-                        opacity: finalContentStyle.opacity,
-                        border: finalContentStyle.borderWidth ? `${finalContentStyle.borderWidth} solid ${finalContentStyle.borderColor}` : undefined
-                    }} 
-                />
+                <div ref={animationRef} className="w-full h-full" style={finalContentStyle}>
+                    <img 
+                        src={element.src} 
+                        alt={element.alt || 'image'} 
+                        className="w-full h-full pointer-events-none"
+                        style={{ 
+                            objectFit: effectiveStyle.objectFit,
+                            borderRadius: finalContentStyle.borderRadius,
+                            opacity: finalContentStyle.opacity,
+                            border: finalContentStyle.borderWidth ? `${finalContentStyle.borderWidth} solid ${finalContentStyle.borderColor}` : undefined
+                        }} 
+                    />
+                </div>
             )
         }
         return (
           <div 
+            ref={animationRef}
             className="w-full h-full flex flex-col items-center justify-center text-gray-400"
             style={finalContentStyle}
           >
@@ -293,36 +362,41 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
              const ytId = getYoutubeId(element.src);
              if (ytId) {
                  return (
-                     <iframe
-                        width="100%"
-                        height="100%"
-                        src={`https://www.youtube.com/embed/${ytId}?autoplay=${element.videoOptions?.autoplay ? 1 : 0}&controls=${element.videoOptions?.controls === false ? 0 : 1}&loop=${element.videoOptions?.loop ? 1 : 0}&playlist=${element.videoOptions?.loop ? ytId : ''}&mute=${element.videoOptions?.muted ? 1 : 0}`}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        style={{ 
-                            borderRadius: finalContentStyle.borderRadius,
-                            pointerEvents: 'none' // Disable interaction in editor
-                        }}
-                     />
+                     <div ref={animationRef} className="w-full h-full" style={finalContentStyle}>
+                         <iframe
+                            width="100%"
+                            height="100%"
+                            src={`https://www.youtube.com/embed/${ytId}?autoplay=${element.videoOptions?.autoplay ? 1 : 0}&controls=${element.videoOptions?.controls === false ? 0 : 1}&loop=${element.videoOptions?.loop ? 1 : 0}&playlist=${element.videoOptions?.loop ? ytId : ''}&mute=${element.videoOptions?.muted ? 1 : 0}`}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            style={{ 
+                                borderRadius: finalContentStyle.borderRadius,
+                                pointerEvents: 'none'
+                            }}
+                         />
+                     </div>
                  );
              }
              return (
-                 <video
-                    src={element.src}
-                    className="w-full h-full"
-                    style={{ 
-                        objectFit: effectiveStyle.objectFit,
-                        borderRadius: finalContentStyle.borderRadius,
-                    }}
-                    autoPlay={element.videoOptions?.autoplay}
-                    loop={element.videoOptions?.loop}
-                    muted={element.videoOptions?.muted}
-                    controls={element.videoOptions?.controls}
-                    playsInline
-                 />
+                 <div ref={animationRef} className="w-full h-full" style={finalContentStyle}>
+                     <video
+                        src={element.src}
+                        className="w-full h-full"
+                        style={{ 
+                            objectFit: effectiveStyle.objectFit,
+                            borderRadius: finalContentStyle.borderRadius,
+                        }}
+                        autoPlay={element.videoOptions?.autoplay}
+                        loop={element.videoOptions?.loop}
+                        muted={element.videoOptions?.muted}
+                        controls={element.videoOptions?.controls}
+                        playsInline
+                     />
+                 </div>
              );
         }
         return (
           <div 
+            ref={animationRef}
             className="w-full h-full flex flex-col items-center justify-center text-gray-400 relative"
             style={finalContentStyle}
           >
@@ -336,20 +410,23 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
       case ElementType.AVATAR:
         if (element.src) {
              return (
-                <img 
-                    src={element.src} 
-                    alt={element.alt || 'avatar'} 
-                    className="w-full h-full pointer-events-none"
-                    style={{ 
-                        objectFit: effectiveStyle.objectFit,
-                        borderRadius: '9999px',
-                        opacity: finalContentStyle.opacity
-                    }} 
-                />
+                <div ref={animationRef} className="w-full h-full" style={finalContentStyle}>
+                    <img 
+                        src={element.src} 
+                        alt={element.alt || 'avatar'} 
+                        className="w-full h-full pointer-events-none"
+                        style={{ 
+                            objectFit: effectiveStyle.objectFit,
+                            borderRadius: '9999px',
+                            opacity: finalContentStyle.opacity
+                        }} 
+                    />
+                </div>
             );
         }
         return (
           <div 
+            ref={animationRef}
             className="w-full h-full flex flex-col items-center justify-center overflow-hidden"
             style={finalContentStyle}
           >
@@ -359,7 +436,7 @@ export const RenderedElement: React.FC<RenderedElementProps> = ({
         );
       case ElementType.DIVIDER:
         return (
-          <div className="w-full h-full flex items-center" style={{ opacity: effectiveStyle.opacity }}>
+          <div ref={animationRef} className="w-full h-full flex items-center" style={finalContentStyle}>
             <div 
               className="w-full" 
               style={{ height: '1px', backgroundColor: effectiveStyle.backgroundColor || '#d1d5db' }}
