@@ -40,7 +40,8 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          # Relative base so assets load correctly on GitHub Pages (site root = /ProektSite/)
+          VITE_BASE_PATH: ./
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
