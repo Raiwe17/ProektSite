@@ -30,9 +30,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        working-directory: ./Project_9.0-main
         run: npm ci
 
       - name: Build
+        working-directory: ./Project_9.0-main
         run: npm run build
         env:
           # Set base path to repository name for GitHub Pages
@@ -45,7 +47,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: './Project_9.0-main/dist'
 
   deploy:
     environment:
