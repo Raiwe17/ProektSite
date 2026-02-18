@@ -40,8 +40,8 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # Relative base so assets load correctly on GitHub Pages (site root = /ProektSite/)
-          VITE_BASE_PATH: ./
+          # Absolute base for GitHub Pages (site lives at /ProektSite/)
+          VITE_BASE_PATH: /ProektSite/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
