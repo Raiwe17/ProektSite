@@ -36,8 +36,9 @@ jobs:
         run: npm run build
         env:
           # Set base path to repository name for GitHub Pages
+          # For ProektSite repository, use '/ProektSite/'
           # Change this if deploying to a custom domain (use '/' for root)
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_BASE_PATH: /ProektSite/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
